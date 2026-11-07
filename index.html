@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#17100a">
+<link rel="icon" href="icon.svg">
+<script>if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js'));</script>
+<title>Carrom Masters</title>
+<style>
+html,body{margin:0;height:100%;background:#17100a;overflow:hidden;touch-action:none;
+  user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+canvas{display:block;position:absolute;left:0;top:0;touch-action:none}
+#overlay{position:absolute;inset:0;display:flex;overflow-y:auto;touch-action:pan-y;color:#fff;
+  background:radial-gradient(circle at 50% 25%,rgba(70,44,16,.96),rgba(8,5,2,.98))}
+.screen{display:none;flex-direction:column;align-items:center;gap:12px;text-align:center;margin:auto;padding:22px 18px;box-sizing:border-box;width:100%;max-width:420px}
+.screen.on{display:flex}
+h1{margin:0;font-size:42px;line-height:1;letter-spacing:3px;color:#ffc83d;text-shadow:0 3px 0 #7a4a00}
+h1 span{font-size:26px;letter-spacing:8px;color:#fff}
+h2{margin:0;color:#ffc83d;letter-spacing:2px}
+p{margin:0;color:#d9c9a8;font-size:14px;line-height:1.45}
+.stats{color:#ffd98a;font-size:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+button{font-size:18px;font-weight:700;padding:14px 26px;min-width:260px;border:none;border-radius:40px;color:#2b1a00;
+  background:linear-gradient(#ffd75e,#f0a500);box-shadow:0 5px 0 #8a5a00,0 8px 16px rgba(0,0,0,.4);cursor:pointer;font-family:inherit}
+button:active{transform:translateY(3px);box-shadow:0 2px 0 #8a5a00}
+button.alt{background:linear-gradient(#8fe3ff,#2aa6d6);box-shadow:0 5px 0 #146a8c,0 8px 16px rgba(0,0,0,.4);color:#04293a}
+button.red{background:linear-gradient(#ff9a9a,#e04646);box-shadow:0 5px 0 #8a1f1f,0 8px 16px rgba(0,0,0,.4);color:#3a0505}
+button.sm{min-width:0;font-size:14px;padding:10px 14px;background:linear-gradient(#5a432a,#3a2a18);color:#ffe3a8;box-shadow:0 3px 0 #1d1409}
+button.chip{min-width:0;font-size:13px;padding:8px 14px;background:#2d2012;color:#cdb98f;box-shadow:none;border:2px solid #4a3a22}
+button.chip.on{background:#ffc83d;color:#2b1a00;border-color:#ffe08a}
+button.mini{min-width:0;font-size:13px;padding:7px 12px;box-shadow:0 3px 0 #8a5a00}
+button:disabled{opacity:.55}
+#shopList{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.card{background:#2a1d0f;border:2px solid #4a3a22;border-radius:14px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px}
+.card.sel{border-color:#ffc83d}
+.pv{width:62px;height:62px;border-radius:10px;border:3px solid #000}
+.pv.round{border-radius:50%;border:2px solid #fff6}
+.left{text-align:left;max-width:360px}
+.left li{margin-bottom:6px;color:#d9c9a8;font-size:14px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="overlay">
+  <div id="menu" class="screen">
+    <h1>CARROM<br><span>MASTERS</span></h1>
+    <div class="stats">🪙 <b id="stCoins"></b> &nbsp; 🏆 <b id="stWins"></b> wins &nbsp; 🎮 <b id="stPlayed"></b> games</div>
+    <div class="row" id="modeChips">
+      <button class="chip" data-m="bw">Black &amp; White</button>
+      <button class="chip" data-m="free">Freestyle</button>
+    </div>
+    <p id="modeDesc"></p>
+    <div class="row" id="diffChips">
+      <button class="chip" data-d="0">Easy</button>
+      <button class="chip" data-d="1">Medium</button>
+      <button class="chip" data-d="2">Hard</button>
+    </div>
+    <button id="bAI">Play vs Computer</button>
+    <button id="b2P" class="alt">2 Players (same phone)</button>
+    <div class="row">
+      <button class="sm" id="bShop">🛒 Shop</button>
+      <button class="sm" id="bSet">⚙ Settings</button>
+      <button class="sm" id="bHow">❓ Help</button>
+    </div>
+  </div>
+
+  <div id="shop" class="screen">
+    <h2>SHOP</h2>
+    <div class="stats">🪙 <b id="shopCoins"></b> coins (earn more by winning)</div>
+    <div class="row"><button class="chip" id="tabS">Strikers</button><button class="chip" id="tabB">Boards</button></div>
+    <div id="shopList"></div>
+    <button class="alt" id="shopBack">Back</button>
+  </div>
+
+  <div id="settings" class="screen">
+    <h2>SETTINGS</h2>
+    <button class="alt" id="tSound"></button>
+    <button class="alt" id="tVib"></button>
+    <button class="alt" id="tGuide"></button>
+    <button class="sm" id="tReset">Reset progress</button>
+    <button id="setBack">Back</button>
+  </div>
+
+  <div id="how" class="screen">
+    <h2>HOW TO PLAY</h2>
+    <ul class="left">
+      <li><b>Position:</b> drag the slider (or the striker) to place it on your baseline.</li>
+      <li><b>Aim &amp; shoot:</b> touch the board, drag backwards, and release. A longer pull means more power.</li>
+      <li><b>Black &amp; White:</b> you are white, the opponent is black. Pocket all your coins to win. Pocketing your own coin gives another turn.</li>
+      <li><b>Queen (red):</b> must be covered by pocketing one of your own coins on the same turn, or it returns to the centre. A covered Queen is worth 3 points.</li>
+      <li><b>Foul:</b> pocketing the striker costs you a turn and returns one of your pocketed coins.</li>
+      <li><b>Freestyle:</b> every coin scores: white 10, black 20, Queen 50. First to 160 wins. A foul costs 10 points.</li>
+      <li><b>Timer:</b> you have 25 seconds per shot.</li>
+    </ul>
+    <button id="howBack">Back</button>
+  </div>
+
+  <div id="pause" class="screen">
+    <h2>PAUSED</h2>
+    <button id="pResume">Resume</button>
+    <button id="pRestart" class="alt">Restart</button>
+    <button id="pQuit" class="red">Quit to Menu</button>
+  </div>
+
+  <div id="result" class="screen">
+    <h1 id="rTitle" style="font-size:36px"></h1>
+    <p id="rSub"></p>
+    <p id="rReward" style="color:#ffd34d;font-size:18px;font-weight:700"></p>
+    <button id="rAgain">Play Again</button>
+    <button id="rMenu" class="alt">Main Menu</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const cv = $('c'), ctx = cv.getContext('2d'), overlay = $('overlay');
+
+const KEY = 'carromMasters.v2';
+const S = {coins:150, wins:0, played:0, sound:true, vib:true, guide:true,
+           skin:0, board:0, ownS:[0], ownB:[0], diff:1, mode:'bw'};
+try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+const SKINS = [
+  {name:'Classic Blue', price:0,   g:['#d8fbff','#38bdf8','#0b5f8a'], pat:0},
+  {name:'Ruby',         price:150, g:['#ffd0d0','#ef4444','#7f1111'], pat:1},
+  {name:'Emerald',      price:150, g:['#d6ffe0','#22c55e','#0d5f2a'], pat:2},
+  {name:'Golden Sun',   price:400, g:['#fff6c0','#f5b800','#8a5a00'], pat:1},
+  {name:'Galaxy',       price:600, g:['#e5d0ff','#8b5cf6','#2e1065'], pat:2},
+];
+const BOARDS = [
+  {name:'Classic Wood', price:0,   a:'#f3dba7', b:'#deba7c', line:'#a63a2a', f:['#6b3f1a','#8a5527','#5a3314']},
+  {name:'Midnight',     price:300, a:'#6f8fd0', b:'#34508c', line:'#e3ecff', f:['#10172b','#1d2a4d','#0b1020']},
+  {name:'Emerald',      price:500, a:'#7fd9a2', b:'#2f8d5a', line:'#fff3c4', f:['#12301f','#1e4d33','#0c2015']},
+  {name:'Royal Red',    price:800, a:'#dc7474', b:'#8f2a2a', line:'#ffe6b3', f:['#2b0f0f','#4a1a1a','#1e0909']},
+];
+const DIFFS = [
+  {name:'Easy',   err:.08,  best:.30, pw:.20, rnd:.15, pool:6},
+  {name:'Medium', err:.03,  best:.70, pw:.07, rnd:.03, pool:3},
+  {name:'Hard',   err:.008, best:.92, pw:.03, rnd:0,   pool:2},
+];
+const VAL = [10, 20, 50];
+const FREE_TARGET = 160;
+const TURN_TIME = 25;
+
+const B = 800;
+const RC = 15, RS = 21, PR = 30;
+const MAXV = 2600, MAXPULL = 170;
+const DRAG = 1.1, DEC = 70, REST = 0.9, WALL = 0.78;
+const SX_MIN = 150, SX_MAX = 650;
+const BASE_Y = [650, 150];
+const pockets = [{x:12,y:12},{x:B-12,y:12},{x:12,y:B-12},{x:B-12,y:B-12}];
+const PAD = 13;
+
+let W, H, dpr, scale, ox, oy, bs, sliderY;
+let coins = [], striker = null, queen = null;
+let turn = 0, mode = 'ai', gameMode = 'bw', diff = 1;
+let state = 'menu', paused = false, queenOwner = null, pts = [0, 0];
+let turnInfo = {pocketed:[], strikerIn:false};
+let aim = {active:false, ux:0, uy:-1, power:0};
+let drag = null, aimStart = null;
+let msg = '', msgT = 0, rollT = 0, turnT = TURN_TIME, fx = [];
+let ai = null, pauseBtn = {x:0, y:0, r:22};
+let shopTab = 's';
+
+const bc = document.createElement('canvas'), bx = bc.getContext('2d');
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  const hudH = 104, bottom = 100;
+  bs = Math.max(200, Math.min(W - 28, H - hudH - bottom - 10));
+  scale = bs / B;
+  ox = (W - bs) / 2;
+  oy = hudH + Math.max(0, (H - hudH - bottom - bs) / 2);
+  sliderY = oy + bs + 50;
+  buildBoard();
+}
+window.addEventListener('resize', resize);
+
+function rr(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+}
+function buildBoard() {
+  const T = BOARDS[S.board], k = bx;
+  const sz = Math.ceil((bs + PAD * 2) * dpr);
+  bc.width = bc.height = sz;
+  k.setTransform(dpr, 0, 0, dpr, 0, 0);
+  let g = k.createLinearGradient(0, 0, bs + 2 * PAD, bs + 2 * PAD);
+  g.addColorStop(0, T.f[0]); g.addColorStop(.5, T.f[1]); g.addColorStop(1, T.f[2]);
+  rr(k, 0, 0, bs + 2 * PAD, bs + 2 * PAD, 20); k.fillStyle = g; k.fill();
+  k.strokeStyle = 'rgba(0,0,0,.55)'; k.lineWidth = 2; k.stroke();
+  k.setTransform(dpr * scale, 0, 0, dpr * scale, PAD * dpr, PAD * dpr);
+  k.save();
+  k.beginPath(); k.rect(0, 0, B, B); k.clip();
+  g = k.createLinearGradient(0, 0, B, B);
+  g.addColorStop(0, T.a); g.addColorStop(1, T.b);
+  k.fillStyle = g; k.fillRect(0, 0, B, B);
+  k.strokeStyle = 'rgba(0,0,0,.05)'; k.lineWidth = 2;
+  for (let i = 0; i < 40; i++) { k.beginPath(); k.moveTo(0, i * 20 + (i % 3)); k.lineTo(B, i * 20 - (i % 4) * 2); k.stroke(); }
+  k.strokeStyle = T.line; k.lineWidth = 3;
+  k.beginPath(); k.arc(B/2, B/2, 120, 0, 7); k.stroke();
+  k.lineWidth = 2; k.beginPath(); k.arc(B/2, B/2, 50, 0, 7); k.stroke();
+  k.globalAlpha = .55;
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4;
+    k.beginPath(); k.moveTo(B/2 + Math.cos(a) * 55, B/2 + Math.sin(a) * 55);
+    k.lineTo(B/2 + Math.cos(a) * 118, B/2 + Math.sin(a) * 118); k.stroke();
+  }
+  k.globalAlpha = 1; k.lineWidth = 3;
+  for (const p of pockets) {
+    const sx = p.x < B/2 ? 1 : -1, sy = p.y < B/2 ? 1 : -1;
+    k.beginPath(); k.moveTo(p.x + sx * 55, p.y + sy * 55); k.lineTo(p.x + sx * 135, p.y + sy * 135); k.stroke();
+    k.beginPath(); k.arc(p.x + sx * 150, p.y + sy * 150, 11, 0, 7); k.stroke();
+  }
+  for (const y of BASE_Y) {
+    k.strokeStyle = T.line; k.lineWidth = 2.5;
+    for (const dy of [-RS - 5, RS + 5]) { k.beginPath(); k.moveTo(SX_MIN, y + dy); k.lineTo(SX_MAX, y + dy); k.stroke(); }
+    for (const x of [SX_MIN, SX_MAX]) {
+      k.beginPath(); k.arc(x, y, RS + 5, 0, 7);
+      k.globalAlpha = .3; k.fillStyle = T.line; k.fill(); k.globalAlpha = 1; k.stroke();
+    }
+  }
+  for (const p of pockets) {
+    const pg = k.createRadialGradient(p.x, p.y, 4, p.x, p.y, PR + 4);
+    pg.addColorStop(0, '#000'); pg.addColorStop(.8, '#151515'); pg.addColorStop(1, '#3a2a1a');
+    k.fillStyle = pg; k.beginPath(); k.arc(p.x, p.y, PR + 3, 0, 7); k.fill();
+  }
+  k.restore();
+}
+
+let AC = null, lastSnd = 0;
+function initAudio() {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} }
+  if (AC && AC.state === 'suspended') AC.resume();
+}
+document.addEventListener('pointerdown', initAudio, {passive:true});
+function snd(v, f = 320) {
+  if (!AC || !S.sound) return;
+  const now = performance.now();
+  if (now - lastSnd < 25) return; lastSnd = now;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = 'triangle'; o.frequency.value = f + v * 0.08;
+  g.gain.setValueAtTime(Math.max(Math.min(0.25, v / 2500), 0.01), AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.09);
+  o.connect(g); g.connect(AC.destination);
+  o.start(); o.stop(AC.currentTime + 0.1);
+}
+function buzz(ms) { if (S.vib && navigator.vibrate) navigator.vibrate(ms); }
+
+function mk(x, y, type) { return {x, y, vx:0, vy:0, r:RC, m:1, type, alive:true}; }
+function setupCoins() {
+  const a = [];
+  queen = mk(B/2, B/2, 2); a.push(queen);
+  for (let i = 0; i < 6; i++) {
+    const ang = i * Math.PI / 3, r = RC * 2.1;
+    a.push(mk(B/2 + Math.cos(ang) * r, B/2 + Math.sin(ang) * r, i % 2));
+  }
+  for (let k = 0; k < 12; k++) {
+    const ang = k * Math.PI / 6, r = (k % 2 === 0) ? RC * 4.2 : RC * 3.64;
+    a.push(mk(B/2 + Math.cos(ang) * r, B/2 + Math.sin(ang) * r, (k % 4) < 2 ? 0 : 1));
+  }
+  return a;
+}
+function initGame(m) {
+  mode = m; gameMode = S.mode; diff = S.diff;
+  coins = setupCoins(); queenOwner = null; turn = 0; pts = [0, 0]; fx = [];
+  paused = false; show(null);
+  setMsg('Game on!', 1.5);
+  startPlace();
+}
+function isAI() { return mode === 'ai' && turn === 1; }
+function validStriker(x, y) {
+  return !coins.some(c => c.alive && Math.hypot(c.x - x, c.y - y) < RS + c.r + 1);
+}
+function startPlace() {
+  striker = {x:B/2, y:BASE_Y[turn], vx:0, vy:0, r:RS, m:2.2, alive:true, type:'S'};
+  if (!validStriker(striker.x, striker.y)) {
+    for (let x = SX_MIN; x <= SX_MAX; x += 5) if (validStriker(x, striker.y)) { striker.x = x; break; }
+  }
+  state = 'place'; aim.active = false; aim.power = 0; drag = null; turnT = TURN_TIME;
+  if (isAI()) planAI(); else ai = null;
+}
+function skinFor(t) { return (t === 0 || mode === '2p') ? S.skin : (S.skin === 1 ? 0 : 1); }
+
+function bodies() {
+  const a = coins.filter(c => c.alive);
+  if (striker && striker.alive) a.push(striker);
+  return a;
+}
+function collide(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), min = a.r + b.r;
+  if (d >= min || d === 0) return;
+  const nx = dx / d, ny = dy / d, ov = min - d, tm = a.m + b.m;
+  a.x -= nx * ov * b.m / tm; a.y -= ny * ov * b.m / tm;
+  b.x += nx * ov * a.m / tm; b.y += ny * ov * a.m / tm;
+  const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+  if (rv > 0) return;
+  const j = -(1 + REST) * rv / (1 / a.m + 1 / b.m);
+  a.vx -= j * nx / a.m; a.vy -= j * ny / a.m;
+  b.vx += j * nx / b.m; b.vy += j * ny / b.m;
+  snd(-rv, a === striker || b === striker ? 380 : 300);
+}
+function pocket(b) {
+  const f = {x:b.x, y:b.y, t:0};
+  if (gameMode === 'free' && b !== striker) f.txt = '+' + VAL[b.type];
+  fx.push(f);
+  snd(900, 140); buzz(25);
+  if (b === striker) { striker.alive = false; turnInfo.strikerIn = true; }
+  else { b.alive = false; b.vx = b.vy = 0; turnInfo.pocketed.push(b); }
+}
+function stepPhysics(dt) {
+  const n = 4, h = dt / n;
+  for (let s = 0; s < n; s++) {
+    const bl = bodies();
+    for (const b of bl) {
+      b.x += b.vx * h; b.y += b.vy * h;
+      const sp = Math.hypot(b.vx, b.vy);
+      if (sp > 0) {
+        const ns = sp * Math.exp(-DRAG * h) - DEC * h;
+        if (ns < 6) { b.vx = b.vy = 0; } else { b.vx *= ns / sp; b.vy *= ns / sp; }
+      }
+      if (b.x < b.r)     { b.x = b.r;     b.vx =  Math.abs(b.vx) * WALL; snd(Math.abs(b.vx), 200); }
+      if (b.x > B - b.r) { b.x = B - b.r; b.vx = -Math.abs(b.vx) * WALL; snd(Math.abs(b.vx), 200); }
+      if (b.y < b.r)     { b.y = b.r;     b.vy =  Math.abs(b.vy) * WALL; snd(Math.abs(b.vy), 200); }
+      if (b.y > B - b.r) { b.y = B - b.r; b.vy = -Math.abs(b.vy) * WALL; snd(Math.abs(b.vy), 200); }
+    }
+    for (let i = 0; i < bl.length; i++)
+      for (let j = i + 1; j < bl.length; j++) collide(bl[i], bl[j]);
+    for (const b of bl) {
+      if (!b.alive) continue;
+      for (const p of pockets) if (Math.hypot(b.x - p.x, b.y - p.y) < PR) { pocket(b); break; }
+    }
+  }
+}
+function moving() { return bodies().some(b => b.vx !== 0 || b.vy !== 0); }
+function shoot(ux, uy, power) {
+  striker.vx = ux * power * MAXV; striker.vy = uy * power * MAXV;
+  turnInfo = {pocketed:[], strikerIn:false};
+  state = 'roll'; rollT = 0; aim.active = false;
+}
+
+function freeSpot() {
+  for (let rad = 0; rad < 300; rad += RC * 1.2) {
+    const steps = rad === 0 ? 1 : Math.floor(2 * Math.PI * rad / (RC * 2.2));
+    for (let i = 0; i < steps; i++) {
+      const a = i / steps * Math.PI * 2;
+      const x = B/2 + Math.cos(a) * rad, y = B/2 + Math.sin(a) * rad;
+      if (!coins.some(c => c.alive && Math.hypot(c.x - x, c.y - y) < c.r * 2 + 1)) return {x, y};
+    }
+  }
+  return {x:B/2, y:B/2};
+}
+function returnCoin(c) { const p = freeSpot(); c.x = p.x; c.y = p.y; c.vx = c.vy = 0; c.alive = true; }
+function remaining(k) { return coins.filter(c => c.alive && c.type === k).length; }
+function score(k) {
+  if (gameMode === 'free') return pts[k];
+  return coins.filter(c => !c.alive && c.type === k).length + (queenOwner === k ? 3 : 0);
+}
+function pname(i) { return mode === 'ai' ? (i === 0 ? 'You' : 'CPU') : 'Player ' + (i + 1); }
+function turnLabel() {
+  if (mode === 'ai') return turn === 0 ? 'Your turn' : "CPU's turn";
+  return 'Player ' + (turn + 1) + "'s turn";
+}
+
+function resolveTurn() {
+  if (gameMode === 'free') return resolveFree();
+  const me = turn, opp = 1 - turn;
+  const p = turnInfo.pocketed;
+  const own = p.filter(c => c.type === me);
+  const foul = turnInfo.strikerIn;
+  const notes = [];
+  if (p.includes(queen)) {
+    if (!foul && own.length > 0) { queenOwner = me; notes.push('Queen covered! +3'); }
+    else { returnCoin(queen); notes.push('Queen returned'); }
+  }
+  if (foul) {
+    const dead = coins.filter(c => !c.alive && c.type === me);
+    if (dead.length) returnCoin(dead[dead.length - 1]);
+    notes.unshift('Foul!');
+  }
+  let winner = null;
+  for (const k of [me, opp]) {
+    if (remaining(k) === 0) {
+      if (queenOwner === null && queen.alive) {
+        const dead = coins.filter(c => !c.alive && c.type === k);
+        if (dead.length) returnCoin(dead[dead.length - 1]);
+        notes.push('Cover the Queen first!');
+      } else { winner = k; break; }
+    }
+  }
+  if (winner !== null) { endGame(winner); return; }
+  const extra = !foul && own.length > 0;
+  if (!extra) turn = opp;
+  else if (!notes.length) notes.push('Nice! Shoot again');
+  if (!notes.length && p.length === 0) notes.push('Missed');
+  setMsg(notes.join(' · ') || turnLabel(), 2);
+  startPlace();
+}
+function resolveFree() {
+  const me = turn, opp = 1 - turn, p = turnInfo.pocketed, foul = turnInfo.strikerIn;
+  const notes = [];
+  if (foul) {
+    pts[me] = Math.max(0, pts[me] - 10);
+    p.forEach(returnCoin);
+    notes.push('Foul! -10');
+  } else if (p.length) {
+    const gain = p.reduce((s, c) => s + VAL[c.type], 0);
+    pts[me] += gain; notes.push('+' + gain + ' points');
+  } else notes.push('Missed');
+  const over = pts[me] >= FREE_TARGET || pts[opp] >= FREE_TARGET || !coins.some(c => c.alive);
+  if (over) { endGame(pts[0] === pts[1] ? -1 : (pts[0] > pts[1] ? 0 : 1)); return; }
+  if (foul || !p.length) turn = opp;
+  setMsg(notes.join(' · '), 2);
+  startPlace();
+}
+function timeUp() {
+  drag = null; aim.active = false;
+  setMsg('Time up!', 1.5);
+  turn = 1 - turn; startPlace();
+}
+function setMsg(t, s) { msg = t; msgT = s; }
+
+function endGame(w) {
+  state = 'over';
+  let reward = 0;
+  if (mode === 'ai') {
+    S.played++;
+    if (w === 0) { S.wins++; reward = [20, 40, 80][diff] + (gameMode === 'free' ? 10 : 0); }
+    else reward = w < 0 ? 10 : 5;
+    S.coins += reward; persist();
+  }
+  setMsg('Game over', 5);
+  setTimeout(() => {
+    if (state !== 'over') return;
+    $('rTitle').textContent = w < 0 ? 'DRAW' :
+      (mode === 'ai' ? (w === 0 ? 'YOU WIN! 🏆' : 'CPU WINS') : pname(w).toUpperCase() + ' WINS! 🏆');
+    $('rSub').textContent = 'Final score — ' + pname(0) + ': ' + score(0) + '  |  ' + pname(1) + ': ' + score(1);
+    $('rReward').textContent = reward ? '+' + reward + ' 🪙' : '';
+    show('result');
+  }, 1200);
+}
+
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  let t = l2 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function clearPath(ax, ay, bx, by, rad, ignore) {
+  for (const c of coins) {
+    if (!c.alive || c === ignore) continue;
+    if (segDist(c.x, c.y, ax, ay, bx, by) < rad + c.r) return false;
+  }
+  return true;
+}
+function planAI() {
+  const me = 1, sy = BASE_Y[1], D = DIFFS[diff];
+  const targets = coins.filter(c => c.alive && (gameMode === 'free' || c.type === me || c.type === 2));
+  const cands = [];
+  for (let sx = SX_MIN + 10; sx <= SX_MAX - 10; sx += 20) {
+    if (!validStriker(sx, sy)) continue;
+    for (const t of targets) for (const pk of pockets) {
+      let ux = pk.x - t.x, uy = pk.y - t.y; const dl = Math.hypot(ux, uy);
+      ux /= dl; uy /= dl;
+      const gx = t.x - ux * (RS + t.r), gy = t.y - uy * (RS + t.r);
+      if (gx < RS || gx > B - RS || gy < RS || gy > B - RS) continue;
+      let vx = gx - sx, vy = gy - sy; const vl = Math.hypot(vx, vy);
+      if (vl < 1) continue; vx /= vl; vy /= vl;
+      const cut = vx * ux + vy * uy;
+      if (cut < 0.45) continue;
+      if (!clearPath(sx, sy, gx, gy, RS, t)) continue;
+      if (!clearPath(t.x, t.y, pk.x, pk.y, t.r, t)) continue;
+      const bonus = gameMode === 'free' ? VAL[t.type] * 0.15 : (t.type === 2 ? -4 : 0);
+      const sc = cut * 100 - vl * 0.03 - dl * 0.05 + bonus;
+      const speed = (vl + dl * 1.3) * 1.1 + 220;
+      cands.push({sx, ux:vx, uy:vy, power:Math.max(0.35, Math.min(1, speed / MAXV)), sc});
+    }
+  }
+  let plan;
+  if (cands.length && Math.random() >= D.rnd) {
+    cands.sort((a, b) => b.sc - a.sc);
+    const idx = Math.random() < D.best ? 0 : Math.floor(Math.random() * Math.min(cands.length, D.pool));
+    const c0 = cands[idx];
+    const err = (Math.random() - 0.5) * 2 * D.err, c = Math.cos(err), s = Math.sin(err);
+    plan = {sx:c0.sx, ux:c0.ux * c - c0.uy * s, uy:c0.ux * s + c0.uy * c,
+            power:Math.min(1, c0.power * (1 + (Math.random() - 0.5) * 2 * D.pw))};
+  } else {
+    let sx = 400; if (!validStriker(sx, sy)) sx = 200 + Math.random() * 400;
+    const pool = targets.length ? targets : [queen];
+    const t = pool[Math.floor(Math.random() * pool.length)];
+    let vx = t.x - sx, vy = t.y - sy; const l = Math.hypot(vx, vy) || 1;
+    plan = {sx, ux:vx / l, uy:vy / l, power:0.5 + Math.random() * 0.3};
+  }
+  ai = {phase:0, t:0, plan, startX:striker.x};
+}
+
+function pt(e) { return {x:e.clientX, y:e.clientY}; }
+function setSlider(px) {
+  const t = Math.max(0, Math.min(1, (px - (ox + 30)) / (bs - 60)));
+  striker.x = SX_MIN + t * (SX_MAX - SX_MIN);
+}
+function moveStrikerTo(px) {
+  striker.x = Math.max(SX_MIN, Math.min(SX_MAX, (px - ox) / scale));
+}
+cv.addEventListener('pointerdown', e => {
+  if (state === 'menu' || state === 'over' || paused) return;
+  const p = pt(e);
+  if (Math.hypot(p.x - pauseBtn.x, p.y - pauseBtn.y) < pauseBtn.r + 6) { pauseGame(); return; }
+  if (state !== 'place' || isAI()) return;
+  cv.setPointerCapture(e.pointerId);
+  const sx = ox + striker.x * scale, sy = oy + striker.y * scale;
+  if (p.y > oy + bs + 14) { drag = 'slider'; setSlider(p.x); }
+  else if (Math.hypot(p.x - sx, p.y - sy) < RS * scale + 14) { drag = 'move'; moveStrikerTo(p.x); }
+  else { drag = 'aim'; aimStart = p; aim.active = true; aim.power = 0; }
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag || state !== 'place') return;
+  const p = pt(e);
+  if (drag === 'slider') setSlider(p.x);
+  else if (drag === 'move') moveStrikerTo(p.x);
+  else {
+    const dx = aimStart.x - p.x, dy = aimStart.y - p.y, d = Math.hypot(dx, dy);
+    if (d > 2) { aim.ux = dx / d; aim.uy = dy / d; }
+    aim.power = Math.min(1, d / scale / MAXPULL);
+  }
+});
+cv.addEventListener('pointerup', () => {
+  if (drag === 'aim' && state === 'place' && !isAI()) {
+    if (aim.power > 0.06 && validStriker(striker.x, striker.y)) shoot(aim.ux, aim.uy, aim.power);
+    else { aim.active = false; if (aim.power > 0.06) setMsg('Striker overlaps a coin!', 1.2); }
+  }
+  drag = null;
+});
+cv.addEventListener('pointercancel', () => { drag = null; aim.active = false; });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
+
+function show(id) {
+  overlay.style.display = id ? 'flex' : 'none';
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id));
+  if (id === 'menu') refreshMenu();
+}
+function refreshMenu() {
+  $('stCoins').textContent = S.coins; $('stWins').textContent = S.wins; $('stPlayed').textContent = S.played;
+  document.querySelectorAll('#modeChips .chip').forEach(b => b.classList.toggle('on', b.dataset.m === S.mode));
+  document.querySelectorAll('#diffChips .chip').forEach(b => b.classList.toggle('on', +b.dataset.d === S.diff));
+  $('modeDesc').textContent = S.mode === 'bw'
+    ? 'Pocket all 9 of your coins (you are white) and cover the Queen.'
+    : 'Every coin scores: white 10, black 20, Queen 50. First to ' + FREE_TARGET + ' wins.';
+}
+document.querySelectorAll('#modeChips .chip').forEach(b => b.onclick = () => { S.mode = b.dataset.m; persist(); refreshMenu(); });
+document.querySelectorAll('#diffChips .chip').forEach(b => b.onclick = () => { S.diff = +b.dataset.d; persist(); refreshMenu(); });
+$('bAI').onclick = () => initGame('ai');
+$('b2P').onclick = () => initGame('2p');
+$('bShop').onclick = () => { renderShop(shopTab); show('shop'); };
+$('bSet').onclick = () => { refreshSettings(); show('settings'); };
+$('bHow').onclick = () => show('how');
+$('shopBack').onclick = $('setBack').onclick = $('howBack').onclick = () => show('menu');
+$('tabS').onclick = () => renderShop('s');
+$('tabB').onclick = () => renderShop('b');
+
+function renderShop(tab) {
+  shopTab = tab;
+  $('shopCoins').textContent = S.coins;
+  $('tabS').classList.toggle('on', tab === 's'); $('tabB').classList.toggle('on', tab === 'b');
+  const items = tab === 's' ? SKINS : BOARDS, owned = tab === 's' ? S.ownS : S.ownB, sel = tab === 's' ? S.skin : S.board;
+  const list = $('shopList'); list.innerHTML = '';
+  items.forEach((it, i) => {
+    const d = document.createElement('div'); d.className = 'card' + (sel === i ? ' sel' : '');
+    const pv = document.createElement('div'); pv.className = 'pv' + (tab === 's' ? ' round' : '');
+    pv.style.background = tab === 's'
+      ? `radial-gradient(circle at 35% 35%,${it.g[0]},${it.g[1]} 60%,${it.g[2]})`
+      : `linear-gradient(135deg,${it.a},${it.b})`;
+    if (tab === 'b') pv.style.borderColor = it.f[1];
+    const nm = document.createElement('div'); nm.textContent = it.name;
+    const b = document.createElement('button'); b.className = 'mini';
+    if (sel === i) { b.textContent = 'Equipped'; b.disabled = true; }
+    else if (owned.includes(i)) { b.textContent = 'Equip'; b.onclick = () => { equip(tab, i); }; }
+    else {
+      b.textContent = '🪙 ' + it.price;
+      if (S.coins < it.price) b.disabled = true;
+      b.onclick = () => { S.coins -= it.price; owned.push(i); equip(tab, i); };
+    }
+    d.append(pv, nm, b); list.appendChild(d);
+  });
+}
+function equip(tab, i) {
+  if (tab === 's') S.skin = i; else { S.board = i; buildBoard(); }
+  persist(); renderShop(tab);
+}
+function refreshSettings() {
+  $('tSound').textContent = '🔊 Sound: ' + (S.sound ? 'ON' : 'OFF');
+  $('tVib').textContent = '📳 Vibration: ' + (S.vib ? 'ON' : 'OFF');
+  $('tGuide').textContent = '🎯 Aim guide: ' + (S.guide ? 'ON' : 'OFF');
+}
+$('tSound').onclick = () => { S.sound = !S.sound; persist(); refreshSettings(); };
+$('tVib').onclick = () => { S.vib = !S.vib; persist(); refreshSettings(); };
+$('tGuide').onclick = () => { S.guide = !S.guide; persist(); refreshSettings(); };
+$('tReset').onclick = () => {
+  if (confirm('Reset coins, wins and unlocked items?')) {
+    Object.assign(S, {coins:150, wins:0, played:0, skin:0, board:0, ownS:[0], ownB:[0]});
+    persist(); buildBoard(); refreshSettings();
+  }
+};
+
+function pauseGame() {
+  if (paused || (state !== 'place' && state !== 'roll')) return;
+  paused = true; show('pause');
+}
+$('pResume').onclick = () => { paused = false; show(null); last = performance.now(); };
+$('pRestart').onclick = () => initGame(mode);
+$('pQuit').onclick = quitToMenu;
+$('rAgain').onclick = () => initGame(mode);
+$('rMenu').onclick = quitToMenu;
+function quitToMenu() {
+  paused = false; state = 'menu'; striker = null; ai = null; drag = null;
+  coins = setupCoins(); show('menu');
+}
+
+const ease = k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+function update(dt) {
+  if (msgT > 0) msgT -= dt;
+  for (const f of fx) f.t += dt;
+  fx = fx.filter(f => f.t < 0.8);
+  if (state === 'roll') {
+    stepPhysics(dt);
+    rollT += dt;
+    if (rollT > 15) bodies().forEach(b => { b.vx = b.vy = 0; });
+    if (!moving()) resolveTurn();
+  } else if (state === 'place') {
+    if (isAI() && ai) {
+      ai.t += dt;
+      if (ai.phase === 0) {
+        const k = Math.min(1, ai.t / 0.8);
+        striker.x = ai.startX + (ai.plan.sx - ai.startX) * ease(k);
+        if (k >= 1) { ai.phase = 1; ai.t = 0; aim = {active:true, ux:ai.plan.ux, uy:ai.plan.uy, power:0}; }
+      } else {
+        aim.power = ai.plan.power * Math.min(1, ai.t / 0.7);
+        if (ai.t > 1.0) { const pl = ai.plan; ai = null; shoot(pl.ux, pl.uy, pl.power); }
+      }
+    } else if (!isAI()) {
+      turnT -= dt;
+      if (turnT <= 0) timeUp();
+    }
+  }
+}
+
+function toBoard() { ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy); }
+function toScreen() { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+
+function drawCoin(c) {
+  const cols = [['#fffdf5','#cfc6ae','#8d836c'], ['#555','#222','#000'], ['#ff7b7b','#d12b2b','#7a0d0d']][c.type];
+  ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.arc(c.x + 3, c.y + 4, c.r, 0, 7); ctx.fill();
+  const g = ctx.createRadialGradient(c.x - 5, c.y - 5, 2, c.x, c.y, c.r);
+  g.addColorStop(0, cols[0]); g.addColorStop(.7, cols[1]); g.addColorStop(1, cols[2]);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, 7); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.strokeStyle = c.type === 1 ? 'rgba(255,255,255,.25)' : 'rgba(0,0,0,.22)';
+  ctx.beginPath(); ctx.arc(c.x, c.y, c.r * .62, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.arc(c.x, c.y, c.r * .25, 0, 7); ctx.stroke();
+}
+function drawStriker(s, bad) {
+  const K = SKINS[skinFor(turn)];
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.arc(s.x + 3, s.y + 5, s.r, 0, 7); ctx.fill();
+  const g = ctx.createRadialGradient(s.x - 7, s.y - 7, 3, s.x, s.y, s.r);
+  if (bad) { g.addColorStop(0, '#ffb0b0'); g.addColorStop(1, '#a00'); }
+  else { g.addColorStop(0, K.g[0]); g.addColorStop(.6, K.g[1]); g.addColorStop(1, K.g[2]); }
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(s.x, s.y, s.r * .7, 0, 7); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 1.5;
+  if (K.pat === 0) {
+    for (let i = 0; i < 6; i++) {
+      const a = i * Math.PI / 3;
+      ctx.beginPath(); ctx.moveTo(s.x + Math.cos(a) * s.r * .25, s.y + Math.sin(a) * s.r * .25);
+      ctx.lineTo(s.x + Math.cos(a) * s.r * .7, s.y + Math.sin(a) * s.r * .7); ctx.stroke();
+    }
+  } else if (K.pat === 1) {
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      ctx.beginPath(); ctx.arc(s.x + Math.cos(a) * s.r * .45, s.y + Math.sin(a) * s.r * .45, 2.2, 0, 7); ctx.fill();
+    }
+  } else {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = i * Math.PI / 5 - Math.PI / 2, r = i % 2 ? s.r * .25 : s.r * .6;
+      ctx.lineTo(s.x + Math.cos(a) * r, s.y + Math.sin(a) * r);
+    }
+    ctx.closePath(); ctx.stroke();
+  }
+}
+function predict(sx, sy, ux, uy) {
+  let x = sx, y = sy;
+  for (let i = 0; i < 400; i++) {
+    x += ux * 3; y += uy * 3;
+    for (const c of coins) if (c.alive && Math.hypot(c.x - x, c.y - y) < RS + c.r) return {x, y, hit:c};
+    if (x < RS || x > B - RS || y < RS || y > B - RS) return {x, y, hit:null, wall:(x < RS || x > B - RS) ? 'x' : 'y'};
+  }
+  return {x, y, hit:null};
+}
+function drawAim() {
+  if (!aim.active || !striker || !striker.alive) return;
+  if (S.guide) {
+    const pr = predict(striker.x, striker.y, aim.ux, aim.uy);
+    ctx.save();
+    ctx.setLineDash([10, 9]); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.9)';
+    ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 3;
+    ctx.beginPath(); ctx.moveTo(striker.x, striker.y); ctx.lineTo(pr.x, pr.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(pr.x, pr.y, RS, 0, 7); ctx.stroke();
+    if (pr.hit) {
+      const dx = pr.hit.x - pr.x, dy = pr.hit.y - pr.y, d = Math.hypot(dx, dy) || 1;
+      const nx = dx / d, ny = dy / d;
+      ctx.strokeStyle = '#ffd34d';
+      ctx.beginPath(); ctx.moveTo(pr.hit.x, pr.hit.y); ctx.lineTo(pr.hit.x + nx * 90, pr.hit.y + ny * 90); ctx.stroke();
+      const dot = aim.ux * nx + aim.uy * ny, tx = aim.ux - dot * nx, ty = aim.uy - dot * ny;
+      ctx.strokeStyle = 'rgba(255,255,255,.55)';
+      ctx.beginPath(); ctx.moveTo(pr.x, pr.y); ctx.lineTo(pr.x + tx * 70, pr.y + ty * 70); ctx.stroke();
+    } else if (pr.wall) {
+      const rx = pr.wall === 'x' ? -aim.ux : aim.ux, ry = pr.wall === 'y' ? -aim.uy : aim.uy;
+      ctx.globalAlpha = .5; ctx.setLineDash([8, 10]);
+      ctx.beginPath(); ctx.moveTo(pr.x, pr.y); ctx.lineTo(pr.x + rx * 130, pr.y + ry * 130); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  const len = 30 + aim.power * 110;
+  const ex = striker.x - aim.ux * (RS + len), ey = striker.y - aim.uy * (RS + len);
+  ctx.strokeStyle = `hsl(${120 - aim.power * 120},90%,55%)`; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(striker.x - aim.ux * (RS + 4), striker.y - aim.uy * (RS + 4)); ctx.lineTo(ex, ey); ctx.stroke();
+  ctx.lineCap = 'butt';
+}
+
+function drawHUD() {
+  toScreen();
+  const pbW = 44, gap = 8, w = (W - 20 - pbW - gap * 2) / 2, h = 48, y = 8;
+  for (let i = 0; i < 2; i++) {
+    const x = i === 0 ? 10 : 10 + w + gap * 2 + pbW;
+    const active = turn === i && state !== 'over';
+    rr(ctx, x, y, w, h, 12);
+    ctx.fillStyle = active ? '#3d2c12' : '#241a0d'; ctx.fill();
+    ctx.strokeStyle = active ? '#ffc83d' : '#4a3a22'; ctx.lineWidth = active ? 3 : 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x + 25, y + h / 2, 13, 0, 7);
+    if (gameMode === 'bw') ctx.fillStyle = i ? '#222' : '#f6f1e4';
+    else ctx.fillStyle = SKINS[skinFor(i)].g[1];
+    ctx.fill(); ctx.strokeStyle = '#999'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.font = 'bold 14px system-ui,sans-serif';
+    ctx.fillText(pname(i) + (queenOwner === i ? ' ♛' : ''), x + 46, y + 20);
+    if (gameMode === 'bw') {
+      const left = remaining(i);
+      for (let d = 0; d < 9; d++) {
+        ctx.beginPath(); ctx.arc(x + 49 + d * 8.5, y + 37, 3, 0, 7);
+        ctx.fillStyle = d < left ? (i ? '#111' : '#f6f1e4') : 'transparent';
+        ctx.strokeStyle = '#b8a784'; ctx.lineWidth = 1;
+        if (d < left) ctx.fill(); ctx.stroke();
+      }
+    } else {
+      rr(ctx, x + 46, y + 33, 72, 7, 3.5); ctx.fillStyle = '#120c05'; ctx.fill();
+      const fw = 72 * Math.min(1, pts[i] / FREE_TARGET);
+      if (fw > 1) { rr(ctx, x + 46, y + 33, fw, 7, 3.5); ctx.fillStyle = '#ffc83d'; ctx.fill(); }
+    }
+    ctx.textAlign = 'right'; ctx.fillStyle = '#ffc83d'; ctx.font = 'bold 24px system-ui,sans-serif';
+    ctx.fillText(score(i), x + w - 10, y + 27);
+  }
+  const cx = 10 + w + gap + pbW / 2, cy = y + h / 2;
+  pauseBtn = {x:cx, y:cy, r:22};
+  ctx.beginPath(); ctx.arc(cx, cy, 20, 0, 7); ctx.fillStyle = '#3d2c12'; ctx.fill();
+  ctx.strokeStyle = '#8a6a30'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#ffd98a'; ctx.fillRect(cx - 7, cy - 8, 5, 16); ctx.fillRect(cx + 2, cy - 8, 5, 16);
+
+  if (state === 'place' && !isAI()) {
+    const f = Math.max(0, turnT / TURN_TIME);
+    rr(ctx, 10, 63, W - 20, 6, 3); ctx.fillStyle = '#120c05'; ctx.fill();
+    if (f > 0.01) { rr(ctx, 10, 63, (W - 20) * f, 6, 3); ctx.fillStyle = `hsl(${f * 120},85%,50%)`; ctx.fill(); }
+  }
+  ctx.textAlign = 'center'; ctx.font = 'bold 15px system-ui,sans-serif';
+  ctx.fillStyle = msgT > 0 ? '#ffd34d' : '#d9c9a8';
+  ctx.fillText(msgT > 0 ? msg : (state === 'over' ? '' : turnLabel()), W / 2, 86);
+}
+
+function drawSlider() {
+  toScreen();
+  const x0 = ox + 30, x1 = ox + bs - 30;
+  const dis = state !== 'place' || isAI();
+  ctx.globalAlpha = dis ? .45 : 1;
+  rr(ctx, x0 - 14, sliderY - 9, x1 - x0 + 28, 18, 9); ctx.fillStyle = '#2b1b0b'; ctx.fill();
+  ctx.strokeStyle = '#6b4a22'; ctx.lineWidth = 2; ctx.stroke();
+  if (striker) {
+    const t = (striker.x - SX_MIN) / (SX_MAX - SX_MIN);
+    const hx = x0 + t * (x1 - x0);
+    rr(ctx, x0 - 6, sliderY - 4, hx - x0 + 6, 8, 4); ctx.fillStyle = '#f0a500'; ctx.fill();
+    const g = ctx.createRadialGradient(hx - 5, sliderY - 5, 2, hx, sliderY, 22);
+    g.addColorStop(0, '#fff2b0'); g.addColorStop(1, '#e09800');
+    ctx.beginPath(); ctx.arc(hx, sliderY, 22, 0, 7); ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#7a4a00'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#7a4a00'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('↔', hx, sliderY + 6);
+  }
+  ctx.globalAlpha = 1;
+  if (state === 'place' && !isAI()) {
+    ctx.fillStyle = '#9d8a66'; ctx.font = '13px system-ui,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Slide to position  •  Drag back on board to aim & shoot', W / 2, Math.min(H - 10, sliderY + 40));
+  }
+}
+
+function render() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#17100a'; ctx.fillRect(0, 0, cv.width, cv.height);
+  toScreen();
+  ctx.drawImage(bc, ox - PAD, oy - PAD, bs + PAD * 2, bs + PAD * 2);
+  toBoard();
+  for (const c of coins) if (c.alive) drawCoin(c);
+  if (state !== 'menu' && striker && striker.alive) {
+    drawAim();
+    drawStriker(striker, state === 'place' && !validStriker(striker.x, striker.y));
+  }
+  for (const f of fx) {
+    const a = Math.max(0, 1 - f.t * 1.25);
+    ctx.strokeStyle = `rgba(255,220,100,${a})`; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(f.x, f.y, 10 + f.t * 90, 0, 7); ctx.stroke();
+    if (f.txt) {
+      ctx.fillStyle = `rgba(255,240,150,${a})`; ctx.font = 'bold 34px system-ui'; ctx.textAlign = 'center';
+      ctx.strokeStyle = `rgba(0,0,0,${a})`; ctx.lineWidth = 4;
+      ctx.strokeText(f.txt, f.x, f.y - f.t * 70); ctx.fillText(f.txt, f.x, f.y - f.t * 70);
+    }
+  }
+  if (state !== 'menu') { drawHUD(); drawSlider(); }
+}
+
+let last = performance.now();
+function loop(t) {
+  const dt = Math.min(0.033, (t - last) / 1000); last = t;
+  if (!paused) update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+resize();
+coins = setupCoins();
+show('menu');
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
