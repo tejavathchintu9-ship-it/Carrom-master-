@@ -1,0 +1,13 @@
+{
+  "name": "Carrom Masters",
+  "short_name": "Carrom",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#17100a",
+  "theme_color": "#17100a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
